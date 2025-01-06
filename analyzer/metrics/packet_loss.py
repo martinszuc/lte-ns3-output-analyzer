@@ -1,3 +1,5 @@
+# analyzer/metrics/packet_loss.py
+
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,7 +14,7 @@ def calculate_average_packet_loss(df):
     Returns:
         float: Average packet loss percentage.
     """
-    packet_loss_cols = [col for col in df.columns if 'PacketLoss' in col]
+    packet_loss_cols = [col for col in df.columns if 'PacketLoss(%)' in col]
     return df[packet_loss_cols].mean().mean()
 
 def plot_average_packet_loss(avg_packet_loss, plots_dir):

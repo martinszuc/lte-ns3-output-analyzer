@@ -1,3 +1,5 @@
+# analyzer/metrics/throughput.py
+
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,7 +14,7 @@ def calculate_average_throughput(df):
     Returns:
         pd.Series: Average throughput per UE.
     """
-    throughput_cols = [col for col in df.columns if 'Throughput' in col]
+    throughput_cols = [col for col in df.columns if 'Throughput(Kbps)' in col]
     return df[throughput_cols].mean()
 
 def plot_average_throughput(avg_throughput, plots_dir):
@@ -23,7 +25,7 @@ def plot_average_throughput(avg_throughput, plots_dir):
         avg_throughput (pd.Series): Average throughput per UE.
         plots_dir (str): Directory to save the plot.
     """
-    plt.figure(figsize=(8, 6))
+    plt.figure(figsize=(10, 6))
     avg_throughput.plot(kind='bar', color='skyblue')
     plt.title('Average Throughput per UE')
     plt.xlabel('User Equipment (UE)')

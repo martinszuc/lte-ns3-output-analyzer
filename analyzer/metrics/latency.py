@@ -1,3 +1,5 @@
+# analyzer/metrics/latency.py
+
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,7 +14,7 @@ def calculate_average_latency(df):
     Returns:
         float: Average latency in ms.
     """
-    return df['Avg_Latency(ms)'].mean()
+    return df['AvgDelay(ms)'].mean()
 
 def plot_average_latency(avg_latency, plots_dir):
     """

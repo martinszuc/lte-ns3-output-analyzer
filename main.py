@@ -9,13 +9,14 @@ Usage:
 
 import argparse
 import os
-import shutil
 import sys
-from datetime import datetime
 
 from analyzer.parse_flowmon import parse_flowmon
 from analyzer.plot_metrics import plot_all_metrics
 from analyzer.utils import setup_version_directory, copy_input_files, generate_report
+from analyzer.metrics.latency import calculate_average_latency, plot_average_latency
+from analyzer.metrics.packet_loss import calculate_average_packet_loss, plot_average_packet_loss
+from analyzer.metrics.throughput import calculate_average_throughput, plot_average_throughput
 
 def main():
     # Parse command-line arguments
@@ -49,14 +50,18 @@ def main():
     parsed_flowmon_csv = os.path.join(version_dir, 'reports', 'flowmon_parsed.csv')
     parse_flowmon(flowmon_file, parsed_flowmon_csv)
 
+    # Check if parsing was successful
+    if not os.path.isfile(parsed_flowmon_csv):
+        print("[Error] Parsing FlowMonitor failed. Exiting.")
+        sys.exit(1)
+
     # Plot metrics
     plots_dir = os.path.join(version_dir, 'plots')
-    os.makedirs(plots_dir, exist_ok=True)
-    plot_all_metrics(simulation_metrics_file, plots_dir)
+    plot_all_metrics(parsed_flowmon_csv, plots_dir)
 
     # Generate Markdown report
     report_file = os.path.join(version_dir, 'reports', 'simulation-report.md')
-    generate_report(simulation_metrics_file, plots_dir, report_file)
+    generate_report(parsed_flowmon_csv, plots_dir, report_file)
 
     print(f"[+] Analysis for version '{version}' completed successfully.")
 

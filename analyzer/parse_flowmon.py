@@ -33,12 +33,12 @@ def parse_flowmon(flowmon_file, output_csv, destination_port_start=5000, num_ue=
 
         tx_bytes = safe_get('txBytes')
         rx_bytes = safe_get('rxBytes')
-        tx_packets = int(float(flow.get('txPackets', 0)))
-        rx_packets = int(float(flow.get('rxPackets', 0)))
-        lost_packets = int(float(flow.get('lostPackets', 0)))
-        delay_sum = float(flow.get('delaySum', 0.0))
-        jitter_sum = float(flow.get('jitterSum', 0.0))
-        duration = float(flow.get('timeLastRxPacket', 0.0)) - float(flow.get('timeFirstTxPacket', 0.0))
+        tx_packets = int(safe_get('txPackets'))
+        rx_packets = int(safe_get('rxPackets'))
+        lost_packets = int(safe_get('lostPackets'))
+        delay_sum = safe_get('delaySum')
+        jitter_sum = safe_get('jitterSum')
+        duration = safe_get('timeLastRxPacket') - safe_get('timeFirstTxPacket')
         throughput = (rx_bytes * 8.0) / (duration * 1e9) if duration > 0 else 0.0  # Gbps
         avg_delay_ms = (delay_sum / rx_packets) * 1e3 if rx_packets > 0 else 0.0  # ms
 
@@ -52,7 +52,7 @@ def parse_flowmon(flowmon_file, output_csv, destination_port_start=5000, num_ue=
             'DelaySum(ns)': delay_sum,
             'JitterSum(ns)': jitter_sum,
             'Duration(ns)': duration,
-            'Throughput(Gbps)': throughput,
+            'Throughput(Kbps)': throughput * 1e6,  # Convert Gbps to Kbps
             'AvgDelay(ms)': avg_delay_ms
         }
 
@@ -87,7 +87,7 @@ def parse_flowmon(flowmon_file, output_csv, destination_port_start=5000, num_ue=
 
     # Step 6: Calculate Packet Loss Rate
     df_flows['PacketLossRate(%)'] = (df_flows['LostPackets'] / df_flows['TxPackets']) * 100.0
-    df_flows['Throughput(Kbps)'] = df_flows['Throughput(Gbps)'] * 1e6  # Convert Gbps to Kbps
+    df_flows['Throughput(Kbps)'] = df_flows['Throughput(Kbps)']
 
     # Step 7: Reorder and Select Columns
     columns_order = [
@@ -107,4 +107,4 @@ def parse_flowmon(flowmon_file, output_csv, destination_port_start=5000, num_ue=
 
 if __name__ == "__main__":
     # Example usage
-    parse_flowmon('flowmon.xml', 'flowmon_parsed.csv')
+    parse_flowmon('input/flowmon.xml', 'input/flowmon_parsed.csv')
