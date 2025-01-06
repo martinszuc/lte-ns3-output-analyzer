@@ -13,7 +13,7 @@
    Use the following command to analyze the simulation results:  
 
    ```bash
-   python main.py --version <version_name> --input_dir <input_directory>
+   python analyzer.py --version <version_name> --input_dir <input_directory>
    ```
 
    **Arguments**:  
@@ -31,7 +31,7 @@
    To analyze version `v2` with files in the default `input/` directory:  
 
    ```bash
-   python main.py --version v2
+   python analyzer.py --version v2
    ```
 
    Results will be stored in `versions/v2/`.
