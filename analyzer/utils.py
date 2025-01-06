@@ -21,6 +21,7 @@ def setup_version_directory(base_dir, version):
     os.makedirs(version_dir, exist_ok=True)
     os.makedirs(os.path.join(version_dir, 'plots'), exist_ok=True)
     os.makedirs(os.path.join(version_dir, 'reports'), exist_ok=True)
+    print(f"[+] Created version directory at '{version_dir}'.")
     return version_dir
 
 def copy_input_files(input_dir, version_dir):
@@ -37,9 +38,9 @@ def copy_input_files(input_dir, version_dir):
         dst = os.path.join(version_dir, file)
         if os.path.isfile(src):
             shutil.copy(src, dst)
-            print(f"[+] Copied {file} to version directory.")
+            print(f"[+] Copied '{file}' to version directory.")
         else:
-            print(f"[Warning] {file} not found in input directory '{input_dir}'.")
+            print(f"[Warning] '{file}' not found in input directory '{input_dir}'.")
 
 def generate_report(simulation_metrics_file, plots_dir, report_file):
     """
@@ -69,7 +70,7 @@ def generate_report(simulation_metrics_file, plots_dir, report_file):
         for plot in os.listdir(plots_dir):
             if plot.endswith('.png'):
                 md.write(f"### {plot.replace('-', ' ').replace('.png', '').title()}\n")
-                md.write(f"![{plot}]({os.path.join('..', 'plots', plot)})\n\n")
+                md.write(f"![{plot}](../plots/{plot})\n\n")
 
         md.write("## Detailed Metrics\n")
         md.write("See `flowmon_parsed.csv` for detailed flow statistics.\n")

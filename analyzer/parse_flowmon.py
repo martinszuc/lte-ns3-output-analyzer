@@ -1,15 +1,18 @@
+# analyzer/parse_flowmon.py
+
 import os
 import xml.etree.ElementTree as ET
 import pandas as pd
-from tabulate import tabulate
 
-def parse_flowmon(flowmon_file, output_csv):
+def parse_flowmon(flowmon_file, output_csv, destination_port_start=5000, num_ue=5):
     """
-    Parses the flowmon.xml file and extracts flow statistics.
+    Parses the flowmon.xml file and extracts flow statistics, including DestinationPort.
 
     Args:
         flowmon_file (str): Path to the flowmon.xml file.
         output_csv (str): Path to save the parsed CSV.
+        destination_port_start (int): Starting port number for UEs.
+        num_ue (int): Number of User Equipments (UEs).
     """
     try:
         tree = ET.parse(flowmon_file)
@@ -18,98 +21,90 @@ def parse_flowmon(flowmon_file, output_csv):
         print(f"[Error] XML parsing error: {e}")
         return
 
-    flows = []
-    for flow in root.findall(".//Flow"):
+    # Step 1: Parse FlowStats
+    flows_stats = {}
+    for flow in root.findall(".//FlowStats/Flow"):
         flow_id = flow.get('flowId')
         if flow_id is None:
             continue
 
-        tx_node = flow.find('Tx')
-        rx_node = flow.find('Rx')
-        if tx_node is None or rx_node is None:
-            continue
+        def safe_get(attr, default=0):
+            return float(flow.get(attr, default))
 
-        tx_address_element = tx_node.find('Address')
-        rx_address_element = rx_node.find('Address')
-        tx_port_element    = tx_node.find('Port')
-        rx_port_element    = rx_node.find('Port')
-        tx_packets_element = tx_node.find('Packets')
-        rx_packets_element = rx_node.find('Packets')
-        tx_bytes_element   = tx_node.find('Bytes')
-        rx_bytes_element   = rx_node.find('Bytes')
-        tx_retx_element    = tx_node.find('ReTx')
-        delay_sum_element  = rx_node.find('DelaySum')
-        jitter_sum_element = rx_node.find('JitterSum')
-        loss_element       = flow.find('Loss')
-        protocol_element   = rx_node.find('Protocol')
-        duration_element   = flow.find('Duration')
+        tx_bytes = safe_get('txBytes')
+        rx_bytes = safe_get('rxBytes')
+        tx_packets = int(float(flow.get('txPackets', 0)))
+        rx_packets = int(float(flow.get('rxPackets', 0)))
+        lost_packets = int(float(flow.get('lostPackets', 0)))
+        delay_sum = float(flow.get('delaySum', 0.0))
+        jitter_sum = float(flow.get('jitterSum', 0.0))
+        duration = float(flow.get('timeLastRxPacket', 0.0)) - float(flow.get('timeFirstTxPacket', 0.0))
+        throughput = (rx_bytes * 8.0) / (duration * 1e9) if duration > 0 else 0.0  # Gbps
+        avg_delay_ms = (delay_sum / rx_packets) * 1e3 if rx_packets > 0 else 0.0  # ms
 
-        if (tx_address_element is None or rx_address_element is None or
-            tx_port_element is None or rx_port_element is None or
-            protocol_element is None):
-            continue
-
-        source_address = tx_address_element.get('value')
-        destination_address = rx_address_element.get('value')
-        protocol = protocol_element.get('value')
-        try:
-            source_port = int(tx_port_element.get('value'))
-            destination_port = int(rx_port_element.get('value'))
-        except (TypeError, ValueError):
-            continue
-
-        def safe_int(elem):
-            return int(elem.get('value')) if elem is not None and elem.get('value') else 0
-
-        def safe_float(elem):
-            return float(elem.get('value')) if elem is not None and elem.get('value') else 0.0
-
-        tx_packets = safe_int(tx_packets_element)
-        rx_packets = safe_int(rx_packets_element)
-        tx_bytes   = safe_int(tx_bytes_element)
-        rx_bytes   = safe_int(rx_bytes_element)
-        tx_retransmissions = safe_int(tx_retx_element)
-        delay_sum  = safe_float(delay_sum_element)
-        jitter_sum = safe_float(jitter_sum_element)
-        packet_loss = safe_float(loss_element)
-        duration   = safe_float(duration_element)
-
-        throughput = (rx_bytes * 8.0) / (duration * 1000.0) if duration > 0 else 0.0
-        avg_delay_ms = (delay_sum / rx_packets) * 1000.0 if rx_packets > 0 else 0.0
-
-        flows.append({
+        flows_stats[flow_id] = {
             'FlowID': int(flow_id),
-            'Protocol': protocol,
-            'SourceAddress': source_address,
-            'DestinationAddress': destination_address,
-            'SourcePort': source_port,
-            'DestinationPort': destination_port,
-            'TxPackets': tx_packets,
-            'RxPackets': rx_packets,
             'TxBytes': tx_bytes,
             'RxBytes': rx_bytes,
-            'TxRetransmissions': tx_retransmissions,
-            'Duration(s)': duration,
-            'Throughput(Kbps)': throughput,
-            'AvgDelay(ms)': avg_delay_ms,
-            'PacketLoss(%)': packet_loss
-        })
+            'TxPackets': tx_packets,
+            'RxPackets': rx_packets,
+            'LostPackets': lost_packets,
+            'DelaySum(ns)': delay_sum,
+            'JitterSum(ns)': jitter_sum,
+            'Duration(ns)': duration,
+            'Throughput(Gbps)': throughput,
+            'AvgDelay(ms)': avg_delay_ms
+        }
 
-    df_flows = pd.DataFrame(flows)
+    # Step 2: Parse Ipv4FlowClassifier to get DestinationPort
+    flow_classifier = {}
+    for flow in root.findall(".//Ipv4FlowClassifier/Flow"):
+        flow_id = flow.get('flowId')
+        if flow_id is None:
+            continue
+        destination_port = flow.get('destinationPort')
+        if destination_port is not None:
+            flow_classifier[flow_id] = int(destination_port)
 
-    # Map flows to UEs based on DestinationPort (e.g., 5000..5004 for 5 UEs)
-    df_flows['UE_Index'] = df_flows['DestinationPort'] - 5000
-    df_flows['UE'] = 'UE_' + df_flows['UE_Index'].astype(str)
+    # Step 3: Merge FlowStats with DestinationPort
+    for flow_id, stats in flows_stats.items():
+        dest_port = flow_classifier.get(flow_id, 0)  # Default to 0 if not found
+        stats['DestinationPort'] = dest_port
+        # Map to UE Index
+        if destination_port_start <= dest_port < destination_port_start + num_ue:
+            ue_index = dest_port - destination_port_start
+            stats['UE_Index'] = ue_index
+            stats['UE'] = f'UE_{ue_index}'
+        else:
+            stats['UE_Index'] = -1
+            stats['UE'] = 'Unknown'
 
-    # Filter out any flows that do not match the expected port range
-    df_flows = df_flows[
-        (df_flows['DestinationPort'] >= 5000) &
-        (df_flows['DestinationPort'] < 5000 + 5)  # Adjust if number of UEs varies
+    # Step 4: Create DataFrame
+    df_flows = pd.DataFrame.from_dict(flows_stats, orient='index')
+
+    # Step 5: Filter out Unknown UEs if necessary
+    df_flows = df_flows[df_flows['UE'] != 'Unknown']
+
+    # Step 6: Calculate Packet Loss Rate
+    df_flows['PacketLossRate(%)'] = (df_flows['LostPackets'] / df_flows['TxPackets']) * 100.0
+    df_flows['Throughput(Kbps)'] = df_flows['Throughput(Gbps)'] * 1e6  # Convert Gbps to Kbps
+
+    # Step 7: Reorder and Select Columns
+    columns_order = [
+        'FlowID', 'UE', 'DestinationPort', 'TxBytes', 'RxBytes',
+        'TxPackets', 'RxPackets', 'LostPackets', 'PacketLossRate(%)',
+        'Throughput(Kbps)', 'DelaySum(ns)', 'AvgDelay(ms)', 'JitterSum(ns)',
+        'Duration(ns)'
     ]
+    df_flows = df_flows[columns_order]
 
+    # Step 8: Save to CSV
     if df_flows.empty:
         print("[Warning] No flows matched the expected destination ports.")
     else:
         df_flows.to_csv(output_csv, index=False)
         print(f"[+] Parsed FlowMonitor data saved to '{output_csv}'.")
 
+if __name__ == "__main__":
+    # Example usage
+    parse_flowmon('flowmon.xml', 'flowmon_parsed.csv')
