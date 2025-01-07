@@ -50,3 +50,5 @@ Thumbs.db
 # Reports and plots
 versions/*/reports/
 versions/*/plots/
+
+input/
