@@ -189,8 +189,7 @@ def main():
     for run_dir in sorted(os.listdir(INPUT_DIR)):
         run_path = os.path.join(INPUT_DIR, run_dir)
         if os.path.isdir(run_path):
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            output_folder = os.path.join(OUTPUT_DIR, f"{run_dir}_output_{timestamp}")
+            output_folder = os.path.join(OUTPUT_DIR, run_dir)
             os.makedirs(output_folder, exist_ok=True)
 
             print(f"Processing: {run_path}")
