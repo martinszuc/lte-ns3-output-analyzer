@@ -72,16 +72,15 @@ def parse_flowmon_xml(file_path):
         return None
 
 
-
 def generate_plots(csv_df, output_folder):
-    """Generate throughput, latency, packet loss, and jitter graphs."""
+    """Generate throughput, latency, packet loss, jitter, and average throughput graphs."""
     os.makedirs(output_folder, exist_ok=True)
 
     # Time Series (X-axis: Time, Y-axis: Metrics per UE)
     time_series = csv_df["Time(s)"]
 
-    # Throughput
-    throughput_columns = [col for col in csv_df.columns if "Throughput" in col]
+    # Throughput per UE
+    throughput_columns = [col for col in csv_df.columns if "Throughput" in col and "Avg" not in col]
     for col in throughput_columns:
         plt.plot(time_series, csv_df[col], label=col)
     plt.title("Per-UE Throughput Over Time")
@@ -91,8 +90,18 @@ def generate_plots(csv_df, output_folder):
     plt.savefig(os.path.join(output_folder, "throughput_time_series.png"))
     plt.clf()
 
+    # Average Throughput
+    if "Avg_Throughput(Kbps)" in csv_df.columns:
+        plt.plot(time_series, csv_df["Avg_Throughput(Kbps)"], label="Avg Throughput")
+        plt.title("Average Throughput Over Time")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Throughput (Kbps)")
+        plt.legend()
+        plt.savefig(os.path.join(output_folder, "avg_throughput_time_series.png"))
+        plt.clf()
+
     # Latency
-    plt.plot(time_series, csv_df["Avg_Latency(ms)"], label="Avg_Latency(ms)")
+    plt.plot(time_series, csv_df["Avg_Latency(ms)"], label="Avg Latency")
     plt.title("Average Latency Over Time")
     plt.xlabel("Time (s)")
     plt.ylabel("Latency (ms)")
@@ -159,29 +168,35 @@ def generate_summary_documentation(csv_df, flowmon_df, output_folder):
             md_file.write(f"- **Average Jitter**: {avg_jitter:.2f} ms\n")
 
 
-def main():
-    ensure_directories()
-
-    # Load CSV and XML
-    csv_file = os.path.join(INPUT_DIR, "simulation_metrics.csv")
-    xml_file = os.path.join(INPUT_DIR, "flowmon.xml")
+def process_run_directory(run_dir, output_folder):
+    """Process a single run directory."""
+    csv_file = os.path.join(run_dir, "simulation_metrics.csv")
+    xml_file = os.path.join(run_dir, "flowmon.xml")
 
     csv_df = load_csv_file(csv_file)
     flowmon_df = parse_flowmon_xml(xml_file)
 
-    # Create unique output folder
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    output_folder = os.path.join(OUTPUT_DIR, f"run_{timestamp}")
-    os.makedirs(output_folder, exist_ok=True)
-
-    # Generate plots
     if csv_df is not None:
         generate_plots(csv_df, output_folder)
 
-    # Generate summary documentation
     generate_summary_documentation(csv_df, flowmon_df, output_folder)
 
-    print(f"Analysis complete. Results saved to: {output_folder}")
+
+def main():
+    ensure_directories()
+
+    # Process each run directory
+    for run_dir in sorted(os.listdir(INPUT_DIR)):
+        run_path = os.path.join(INPUT_DIR, run_dir)
+        if os.path.isdir(run_path):
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            output_folder = os.path.join(OUTPUT_DIR, f"{run_dir}_output_{timestamp}")
+            os.makedirs(output_folder, exist_ok=True)
+
+            print(f"Processing: {run_path}")
+            process_run_directory(run_path, output_folder)
+
+    print(f"Analysis complete. Results saved to: {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":
